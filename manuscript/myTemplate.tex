@@ -75,101 +75,45 @@
 \begin{document}
 \begin{frontmatter}
 
-  \title{A mechanistic approach to unmixing detrital geochronologic data using Bayesian nonparametric mixture models}
-    \author[a]{John R. Tipton\corref{1}}
-   \ead{jrtipton@uark.edu} 
-      \address[a]{University of Arkansas, Department of Mathematical Sciences, Fayetteville, AR, USA}
-    \author[University of Arkansas]{Glenn R. Sharman}
-       \address[University of Arkansas]{University of Arkansas, Department of Geosciences, Fayetteville, AR USA}
-    \author[U.S. Geological Survey]{Samuel A. Johnstone}
-    \address[U.S. Geological Survey]{U.S. Geological Survey, Geosciences and Environmental Change Science Center, Denver, USA}
-      \cortext[1]{Corresponding Author}
+\title{A mechanistic approach to unmixing detrital geochronologic data using Bayesian nonparametric mixture models}
+
+\author[a]{John R. Tipton%\fnmark[1]%\footnote{\samepage Contribution: conceptualization, model development, software, writing - original draft.}
+}
+\corref{1}
+\fnmark[1]
+\fntext[1]{\samepage Contribution: conceptualization, model development, software, and writing - original draft.}
+\ead{jrtipton@uark.edu} 
+\address[a]{University of Arkansas, Department of Mathematical Sciences, Fayetteville, AR, USA}
+% \credit{conceptualization, model development, software, writing - original draft.}
+% \fntext[fn1]{Contribution: conceptualization, model development, software, writing - original draft.}
   
-  \begin{abstract}
+\author[a]{Glenn R. Sharman
+% \footnote{\samepage Contribution: conceptualization, model development, writing - review and editing.}
+\fnmark[2]
+}
+
+\fntext[2]{Contribution: conceptualization, model development, and writing - review and editing.}
+
+\author[b]{Samuel A. Johnstone 
+% \footnote{\samepage Contribution: conceptualization, model development, writing - review and editing.}0
+\fnmark[fn3]
+}
+
+\address[b]{U.S. Geological Survey, Geosciences and Environmental Change Science Center, Denver, USA}
+\fntext[fn3]{\samepage Contribution: conceptualization and writing - review and editing.}
+
+
+  
+\begin{abstract}
 Sedimentary deposits constitute the primary record of changing environmental conditions that have acted on Earth's surface over geologic time. Clastic sediment is eroded from source locations (parents) in sediment routing systems and deposited at sink locations (children). Both parents and children have characteristics that vary across many different dimensions, including grain size, chemical composition, and the geochronologic age of constituent detrital minerals. During transport, sediment from different parents is mixed together to form a child, which in turn may serve as the parent for other sediment further down system or later in time when buried sediment is exhumed. To the extent that parent sources produce sediment with distinguishable geochronologic ages, the distribution of detrital mineral ages observed in child sediments allows for investigation of the proportions of each parent in the child sediment which ultimately reflects properties of the sediment routing system, such as the relative sediment flux. To model the proportion of dates in a child sample that comes from each of the parent distributions, we use a Bayesian mixture of Dirichlet processes. This model allows for estimation of the mixing proportions with associated uncertainty while making minimal assumptions. We also present an extension to the model whereby we reconstruct unobserved parent distributions from multiple observed child distributions using mixtures of Dirichlet processes, accounting for uncertainty in both the number of parent distributions and the mixing proportions.
-  \end{abstract}
+\end{abstract}
 
- \end{frontmatter}
-
-\linenumbers
-
-
-
+\end{frontmatter}
 
 
 
 $body$
-% \begin{abstract}
-% Insert your abstract here. Include keywords, PACS and mathematical
-% subject classification numbers as needed.
-% \keywords{First keyword \and Second keyword \and More}
-% % \PACS{PACS code1 \and PACS code2 \and more}
-% % \subclass{MSC code1 \and MSC code2 \and more}
-% \end{abstract}
-% 
-% \section{Introduction}
-% \label{intro}
-% Your text comes here. Separate text sections with
-% \section{Section title}
-% \label{sec:1}
-% Text with citations \cite{RefB} and \cite{RefJ}.
-% \subsection{Subsection title}
-% \label{sec:2}
-% as required. Don't forget to give each section
-% and subsection a unique label (see Sect.~\ref{sec:1}).
-% \paragraph{Paragraph headings} Use paragraph headings as needed.
-% \begin{equation}
-% a^2+b^2=c^2
-% \end{equation}
-% 
-% % For one-column wide figures use
-% \begin{figure}
-% % Use the relevant command to insert your figure file.
-% % For example, with the graphicx package use
-%   \includegraphics{example.eps}
-% % figure caption is below the figure
-% \caption{Please write your figure caption here}
-% \label{fig:1}       % Give a unique label
-% \end{figure}
-% %
-% % For two-column wide figures use
-% \begin{figure*}
-% % Use the relevant command to insert your figure file.
-% % For example, with the graphicx package use
-%   \includegraphics[width=0.75\textwidth]{example.eps}
-% % figure caption is below the figure
-% \caption{Please write your figure caption here}
-% \label{fig:2}       % Give a unique label
-% \end{figure*}
-% %
-% % For tables use
-% \begin{table}
-% % table caption is above the table
-% \caption{Please write your table caption here}
-% \label{tab:1}       % Give a unique label
-% % For LaTeX tables use
-% \begin{tabular}{lll}
-% \hline\noalign{\smallskip}
-% first & second & third  \\
-% \noalign{\smallskip}\hline\noalign{\smallskip}
-% number & number & number \\
-% number & number & number \\
-% \noalign{\smallskip}\hline
-% \end{tabular}
-% \end{table}
-% 
-% 
-% %\begin{acknowledgements}
-% %If you'd like to thank anyone, place your comments here
-% %and remove the percent signs.
-% %\end{acknowledgements}
-% 
-% % BibTeX users please use one of
-% %\bibliographystyle{spbasic}      % basic style, author-year citations
 
-% \bibliographystyle{spmpsci}      % mathematics and physical sciences
-
-% %\bibliographystyle{spphys}       % APS-like style for physics
 \bibliography{mixing.bib}   % name your BibTeX data base
 % 
 % % Non-BibTeX users please use

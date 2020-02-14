@@ -1,6 +1,6 @@
 ---
 bibliography: mixing.bib
-citation_package: biblatex
+citation_package: natbib
 output:
   pdf_document:
     dev: pdf
@@ -9,7 +9,7 @@ output:
     number_section: yes
     template: myTemplate.tex
   word_document: default
-pandoc_options: --biblatex
+urlcolor: blue  
 ---
 
 
@@ -34,12 +34,15 @@ n_samples <- n_mcmc / n_thin
 ```
 
 
+<!-- added to allow author contributions to be on title page -->
+\vspace{10em}
+
 \doublespacing
 \linenumbers
 
-\begin{abstract}
-Sedimentary deposits constitute the primary record of changing environmental conditions that have acted on Earth's surface over geologic time. Clastic sediment is eroded from source locations (parents) in sediment routing systems and deposited at sink locations (children). Both parents and children have characteristics that vary across many different dimensions, including grain size, chemical composition, and the geochronologic age of constituent detrital minerals. During transport, sediment from different parents is mixed together to form a child, which in turn may serve as the parent for other sediment further down system or later in time when buried sediment is exhumed. To the extent that parent sources produce sediment with distinguishable geochronologic ages, the distribution of detrital mineral ages observed in child sediments allows for investigation of the proportions of each parent in the child sediment which ultimately reflects properties of the sediment routing system, such as the relative sediment flux. To model the proportion of dates in a child sample that comes from each of the parent distributions, we use a Bayesian mixture of Dirichlet processes. This model allows for estimation of the mixing proportions with associated uncertainty while making minimal assumptions. We also present an extension to the model whereby we reconstruct unobserved parent distributions from multiple observed child distributions using mixtures of Dirichlet processes, accounting for uncertainty in both the number of parent distributions and the mixing proportions.
-\end{abstract}
+<!-- \begin{abstract} -->
+<!-- Sedimentary deposits constitute the primary record of changing environmental conditions that have acted on Earth's surface over geologic time. Clastic sediment is eroded from source locations (parents) in sediment routing systems and deposited at sink locations (children). Both parents and children have characteristics that vary across many different dimensions, including grain size, chemical composition, and the geochronologic age of constituent detrital minerals. During transport, sediment from different parents is mixed together to form a child, which in turn may serve as the parent for other sediment further down system or later in time when buried sediment is exhumed. To the extent that parent sources produce sediment with distinguishable geochronologic ages, the distribution of detrital mineral ages observed in child sediments allows for investigation of the proportions of each parent in the child sediment which ultimately reflects properties of the sediment routing system, such as the relative sediment flux. To model the proportion of dates in a child sample that comes from each of the parent distributions, we use a Bayesian mixture of Dirichlet processes. This model allows for estimation of the mixing proportions with associated uncertainty while making minimal assumptions. We also present an extension to the model whereby we reconstruct unobserved parent distributions from multiple observed child distributions using mixtures of Dirichlet processes, accounting for uncertainty in both the number of parent distributions and the mixing proportions. -->
+<!-- \end{abstract} -->
 
 \section{Introduction}
 \label{intro}
@@ -280,7 +283,7 @@ The posterior distribution that we estimate with the end member unmixing model i
 \left[ \boldsymbol{\sigma}_b \right] \right),
 \end{align*}
 
-where the priors and MCMC algorithm are the same as those in (\ref{eq:posterior}) except for a change in dimensionality. Code and data for replication of results presented in this manuscript can be found at [https://github.com/jtipton25/mixing-manuscript](https://github.com/jtipton25/mixing-manuscript).
+where the priors and MCMC algorithm are the same as those in (\ref{eq:posterior}) except for a change in dimensionality. Code and data for replication of results presented in this manuscript can be found freely available under the permissive MIT license on GitHub at [https://github.com/jtipton25/mixing-manuscript](https://github.com/jtipton25/mixing-manuscript).
 
 
 
@@ -411,6 +414,13 @@ Direct, probabilistic estimates of uncertainty and the ability to calculate deri
 In addition, the ability to include prior information in the Bayesian framework is a useful tool that can be used to improve estimation and test geologic hypotheses. For example, certain geologic events, such as the Grenville orogeny, produced large amounts of zircon that have since been broadly dispersed and recycled in sedimentary rocks. Priors that account for the likelihood of observing zircons of Grenville-age (or other known zircon-producing events) can be introduced into this model framework to improve model performance. In addition, our framework can accommodate a variety of detrital data with different magnitudes of uncertainty. As analytic techniques for dating minerals improve, it is important to account for dating uncertainties that might have orders of magnitude difference making our method more robust to future improvements in analytic laboratory techniques.
 
 
+\section{Declaration of competing interest}
+
+The authors declare that they have no known competing finan-cial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section{CRediT authorship contribution statement} **John R. Tipton:** conceptualization, model development, software, writing - original draft. **Glenn R. Sharman**: conceptualization, model development, writing - review and editing. **Samuel A. Johnstone**: conceptualization, writing - review and editing.
+
+<!-- \printcredits -->
 
 \section{Acknowledgements}
 
