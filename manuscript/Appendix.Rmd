@@ -1,5 +1,5 @@
 ---
-title: "Appendix S2: Code to reproduce analyses and figures"
+title: "Appendix: Code to reproduce analyses and figures"
 author: "John Tipton"
 output:
   pdf_document:
