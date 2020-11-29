@@ -1,8 +1,8 @@
 ---
-title: "Appendix: Code to reproduce analyses and figures"
-author: "John Tipton"
+title: "Appendix: A mechanistic approach to unmixing detrital geochronologic data using Bayesian nonparametric mixture models"
+author: "John Tipton, Glenn Sharman, Samuel Johnstone"
 output:
-  pdf_document:
+  bookdown::pdf_document2:
     keep_tex: false
 header-includes:
   - \usepackage{float}
@@ -12,22 +12,23 @@ header-includes:
 bibliography: mixing.bib
 ---
 
-# To Do
+In this appendix, we present the `R` code to replicate the analyses and generate the figures from the manuscript "A mechanistic approach to unmixing detrital geochronologic data using Bayesian nonparametric mixture models." 
 
-In this appendix, we present the `R` code to replicate the analyses and generate the figures from the manuscript. 
-
-To start the analysis, we load helper packages and define some default global settings
+To start the analysis, we load helper packages and define some default global settings.
 
 ```{r setup, include = TRUE, echo = TRUE, message = FALSE}
 library(knitr)
 library(rmarkdown)
 library(MCMCpack)
 library(ggplot2)
+library(gridExtra)
 library(nimble)
-library(ggtern)
+# library(ggtern) ## needs to not be loaded to get ggplot to work on other figures. 
+## see here for detials: https://stackoverflow.com/questions/60989586/ggtern-breaks-ggplot2-and-produces-plots-without-axis-labels-etc
 library(here)
 library(readxl)
 library(tidyverse)
+library(patchwork)
 
 knitr::opts_chunk$set(
   echo = TRUE,
@@ -45,9 +46,9 @@ source(here("R", "broken-stick.R"))
 ```
 
 
-## Figure 2
+# Process Model realization: Figure 2
 
-The following code generates data for Figure 2. We simulate the parameters for the generative mixing model and then generate the figures.
+The following code generates data for Figure 2. We simulate the parameters for the generative mixing model and then generate the figures. The results in Figure 2 show an example realization of the generative Dirichlet process that mathematically approximates the mechanistic geologic processes that give rise to the observed data.
 
 ```{r}
 set.seed(404)
@@ -208,10 +209,10 @@ include_graphics(here::here("figures", "weighted-age-mixing-model-filled.png"))
 \label{fig:clustering}
 \end{figure}
 
-# Top-down simulation study and Figure 3
+# Top-down simulation study and Figure 3 {#top-down}
 
 
-For our top-down simulation experiment, we being by generating parameters for simulation.
+In the top-down experiment, we simulate data from both parent and child sources and use both data sources to estimate the mixing proportions. For our top-down simulation experiment, we being by generating parameters for simulation.
 
 ```{r}
 set.seed(401)
@@ -244,7 +245,7 @@ mu <- sort(runif(K, 0.25, 4), decreasing = FALSE)
 sigma <- runif(K, 0.25/3, 0.5/3)
 ```
 
-Using the simulated parameters, we simulate parent and daughter distributions. Using the simulated distributions, we generate a plot of the simulated parents and daughters. The histograms represent the sampled age distributions and the black density curves are the true, unobserved age distributions.
+Using the simulated parameters, we simulate parent and child distributions. Using the simulated distributions, we generate a plot of the simulated parents and children. The histograms represent the sampled age distributions and the black density curves are the true, unobserved age distributions.
 
 ```{r}
 s_y <- runif(Ny, 0.05, 0.1)
@@ -261,7 +262,7 @@ z <- z_tilde + epsilon_z
 parents <- data.frame(
   parent             = c(
     unlist(sapply(1:B, function(b) rep(paste0("parent", b), Nb[b]))),
-    rep("daughter", Ny)
+    rep("child", Ny)
   ),
   age                = c(unlist(z), y),
   dating_uncertainty = c(s_z, s_y))
@@ -271,7 +272,7 @@ x = seq(0, 4.5, length=N_rep)
 df_dens <- data.frame(
   x        = x,
   parent   = factor(c(rep("parent1", N_rep), rep("parent2", N_rep),
-                      rep("parent3", N_rep), rep("daughter", N_rep))),
+                      rep("parent3", N_rep), rep("child", N_rep))),
   density  = c(sapply(x, function(y) dmixNorm(y, p[1, ], mu, sigma)), 
                sapply(x, function(y) dmixNorm(y, p[2, ], mu, sigma)),
                sapply(x, function(y) dmixNorm(y, p[3, ], mu, sigma)),
@@ -288,7 +289,7 @@ if (!file.exists(here::here("figures", "sim-parents.png"))) {
   dev.off()
 }
 
-y <- subset(parents$age, parents$parent == "daughter")
+y <- subset(parents$age, parents$parent == "child")
 z <- matrix(NA, max(Nb), length(levels(parents$parent))-1)
 sd_z <- matrix(NA, max(Nb), length(levels(parents$parent))-1)
 for (i in 1:(length(levels(parents$parent))-1)) {
@@ -304,7 +305,7 @@ for (i in 1:(length(levels(parents$parent))-1)) {
 include_graphics(here("figures", "sim-parents.png"))
 ```
 
-Next, we fit the top-down mixing model to the simulated data using Markov Chain Monte Carlo (MCMC). We fit the model for `r n_mcmc + n_burn` iterations discarding the first `r n_burn` iterations as burn-in with the MCMC samples thinned every `r n_thin` iterations resulting in `r n_mcmc / n_thin` posterior samples. We use an adaptive block-Metropolis algorithm during burn-in with variable transformations used to enforce positive support when needed \cite{haario2001adaptive}. 
+Next, we fit the top-down mixing model to the simulated data using Markov Chain Monte Carlo (MCMC) with the NIMBLE package in R [@nimble2017]. We fit the model for `r n_mcmc + n_burn` iterations discarding the first `r n_burn` iterations as burn-in with the MCMC samples thinned every `r n_thin` iterations resulting in `r n_mcmc / n_thin` posterior samples. We use an adaptive block-Metropolis algorithm during burn-in with variable transformations used to enforce positive support when needed [@haario2001adaptive]. 
 
 ```{r}
 ## Model Statement
@@ -326,7 +327,7 @@ mix_code <- nimbleCode({
     alphab[j] ~ dgamma(1, 1)
   }
   
-  ## mixing model likelihood for daughter
+  ## mixing model likelihood for child
   for (i in 1:n){
     y[i] ~ dnorm(y_tilde[i], sd = sd_y[i]) 
     y_tilde[i] ~ dmixmixShared(phi[1:B], p[1:B, 1:K], mu[1:K], sigma[1:K])
@@ -416,7 +417,10 @@ if (file.exists(here::here("model-fit", "fit-sim-mixing-nimble.RData"))) {
 }
 ```
 
+
 ## Figure 3, part a
+
+This chunk of code generates a plot of the simulated probability density functions (pdfs) for each parent along with the simulated pdf to visually demonstrate the accuracy and precision of the top-down model to reconstruct the pdfs from sample data. This figure is not included in the manuscript but is made available in the appendix to show the estimated pdfs.
 
 ```{r}
 n_samples <- nrow(samples)
@@ -462,7 +466,7 @@ if (file.exists(here::here("model-fit", "fit-mix-sim-density-nimble.RData"))) {
     dim = c(nrow(samples), 3 + 1, length(x)),
     dimnames = list(
       iterations = 1:nrow(samples),
-      site = c("Parent 1", "Parent 2", "Parent 3", "Simulated Daughter"),
+      site = c("Parent 1", "Parent 2", "Parent 3", "Simulated Child"),
       x = x)
   )
   
@@ -485,11 +489,11 @@ if (file.exists(here::here("model-fit", "fit-mix-sim-density-nimble.RData"))) {
   df <- as.data.frame.table(dens, responseName = "curve")
   df$x <- as.numeric(as.character(df$x))
   df$source <- rep(c(rep("Parent", 3 * nrow(dens)), 
-                     rep("Daughter", nrow(dens))),
+                     rep("Child", nrow(dens))),
                    times = n_curve)
   df$site <- factor(
     df$site,
-    levels  = c("Parent 1", "Parent 2", "Parent 3", "Simulated Daughter")
+    levels  = c("Parent 1", "Parent 2", "Parent 3", "Simulated Child")
   )
   
   save(df, file = here::here("model-fit", "fit-mix-sim-density-nimble.RData"))
@@ -507,7 +511,7 @@ if (!file.exists(here::here("figures", "sim-fit-nimble.png"))) {
   
   png(file = here::here("figures", "sim-fit-nimble.png"),
       width = 6, height = 6, units = "in", res = 200)
-  ## note: multiply x by 100 to be in 100Ma years
+  ## note: multiply x by 100 to be in 100Myr years
   print(
     ggplot(data = dat_plot,  aes(x = values, group = site)) +
       facet_wrap(~ site, ncol = 1) +
@@ -518,7 +522,45 @@ if (!file.exists(here::here("figures", "sim-fit-nimble.png"))) {
       geom_line(data = df_truth, 
                 aes(x = x, y = truth),
                 alpha = 0.85, color = "blue", lwd = 0.75) + 
-      xlab("Simulated Age in 100 Ma") + 
+      xlab("Simulated Age in 100 Myr") + 
+      ylab("Density") +
+      theme_bw() +
+      ylim(c(0, 6)) +
+      theme(
+        plot.title   = element_text(size=32, face="bold", hjust=0.5),
+        axis.text.x  = element_text(size = 24), 
+        strip.text.x = element_text(size = 22),
+        axis.text.y  = element_text(size = 24), 
+        axis.title.x = element_text(
+          size   = 26,
+          margin = margin(t = 5, r = 0, b = 0, l = 0)
+        ), 
+        axis.title.y = element_text(
+          size   = 26, 
+          margin = margin(t = 0, r = 10, b = 0, l = 0)
+        )
+      ) 
+  )
+  dev.off()
+}
+
+if (!file.exists(here::here("figures", "sim-fit-nimble-kde.png"))) {
+  
+  png(file = here::here("figures", "sim-fit-nimble-kde.png"),
+      width = 6, height = 6, units = "in", res = 200)
+  ## note: multiply x by 100 to be in 100Myr years
+  print(
+    ggplot(data = dat_plot,  aes(x = values, group = site)) +
+      facet_wrap(~ site, ncol = 1) +
+      geom_histogram(aes(y = ..density..), bins = 100, fill = "black", alpha = 0.5) +
+      geom_line(data = subset(df, source == "Parent"),
+                aes(x = x, y= curve, group = site),
+                alpha = 0.05, color = "red") +
+                geom_density(aes(group = site), color = "black", fill = NA, adjust = 0.25) +
+      geom_line(data = df_truth, 
+                aes(x = x, y = truth),
+                alpha = 0.85, color = "blue", lwd = 0.75) + 
+      xlab("Simulated Age in 100 Myr") + 
       ylab("Density") +
       theme_bw() +
       ylim(c(0, 6)) +
@@ -543,6 +585,8 @@ if (!file.exists(here::here("figures", "sim-fit-nimble.png"))) {
 
 ## Figure 3, part b
 
+The following code generates the ternary diagram which represents the proportions or the parents that are present in the simulated child. The blue shadings are proportional to posterior probability and the orange triangle is the simulated true value.
+
 ```{r}
 dat_ggtern <- data.frame(
   x = phiSamples[, 1], 
@@ -553,20 +597,22 @@ dat_ggtruth <- data.frame(
   y = phi[2], 
   z = phi[3])
 
-if (!file.exists(here::here("figures", "sim-density-nimble.png"))) {
-  png(file = here::here("figures", "sim-density-nimble.png"),
+if (!file.exists(here::here("figures", "sim-density-nimble-hex.png"))) {
+  png(file = here::here("figures", "sim-density-nimble-hex.png"),
       width = 6, height = 6, units = "in", res = 200)
   print(ggtern(data = dat_ggtern, aes(x = x, y = y, z = z)) +
-          stat_density_tern(geom      = 'polygon',
-                            n         = 200,
-                            aes(fill  = ..level..)) +
-          scale_fill_distiller(palette = "Blues", direction = 1) + 
+          # stat_density_tern(geom      = 'polygon',
+          #                   n         = 200,
+          #                   aes(fill  = ..level..)) +
+          scale_fill_distiller(palette = "Blues", direction = 1) +
           limit_tern(breaks=c(1/3, 2/3),
                      labels=c(33, 66), minor_breaks=NULL) +
           labs(fill = "Density") +
-          geom_point(alpha = 0.075) + 
+          # geom_point(alpha = 0.075) + 
+          geom_hex_tern(bins = 50, size = 0.01) +
           geom_point(data = dat_ggtruth,
-                     color = "orange", shape = 17, cex = 2.5) + 
+                     color = "orange", shape = 17, cex = 2.5) +
+
           theme_bw() +
           theme(
             plot.title        = element_text(hjust = 0.5, size = 30),
@@ -579,13 +625,15 @@ if (!file.exists(here::here("figures", "sim-density-nimble.png"))) {
             legend.position   = "none"
           ) +
           labs(x = "P1", y = "P2", z = "P3") +
-          ggtitle("Simulated Daughter"))
+          ggtitle("Simulated Child"))
   dev.off()
 }
 ```
 
 ## Figure 3, part c
 
+
+The code below generate the figure showing the simulated cumulative distribution functions (cdfs) for the parents in black and the posterior estimates of the cdfs in red. 
 
 ```{r}
 layout(1)
@@ -624,7 +672,7 @@ if (!file.exists(here::here("figures", "fit-mix-cdf-sim-nimble.png"))) {
                 aes(x = x, y = truth, group = NULL),
                 color = "black") +
       theme_bw() + 
-      xlab("Simulated Age in 100 Ma") + 
+      xlab("Simulated Age in 100 Myr") + 
       ylab("Cumulative Density") + 
       scale_y_continuous(breaks = c(0.0, 0.33, 0.66, 1.0)) +
       theme(
@@ -658,9 +706,9 @@ include_graphics(here::here("figures", "sim-fit-nimble.png"))
 \begin{subfigure}[t]{0.32\textwidth}
 \centering
 ```{r, echo = FALSE, out.width = "0.95\\linewidth", fig.align = "center"}
-include_graphics(here::here("figures", "sim-density-nimble.png"))
+include_graphics(here::here("figures", "sim-density-nimble-hex.png"))
 ```
-\caption{Ternary plot showing posterior mixing proportion estimates as black circles and the simulated true mixing proportions as an orange triangle.}
+\caption{Ternary plot showing posterior mixing proportion estimates with posterior probability proportional to blue shading with the simulated true mixing proportion as an orange triangle.}
 \label{fig:simulation2}
 \end{subfigure} \hfill
 \begin{subfigure}[t]{0.32\textwidth}
@@ -675,9 +723,199 @@ include_graphics(here::here("figures", "fit-mix-cdf-sim-nimble.png"))
 \label{fig:simulation}
 \end{figure}
 
+
+<!-- ## Checking if latent parameters are recovered -->
+
+
+```{r}
+## Check number of clusters
+layout(matrix(1:6, 3, 2, byrow = TRUE))
+barplot(p[1, ], xlab = "formation event",
+        ylab = "Mean posterior mixture weight",
+        main = "Simulated formation events for parent 1")
+barplot(apply(pSamples[, 1, ], 2, mean), xlab = "formation event",
+        ylab = "Mean posterior mixture weight",
+        main = "Estimated formation events for parent 1")
+
+barplot(p[2, ], xlab = "formation event",
+        ylab = "Mean posterior mixture weight",
+        main = "Simulated formation events for parent 2")
+barplot(apply(pSamples[, 2, ], 2, mean), xlab = "formation event",
+        ylab = "Mean posterior mixture weight",
+        main = "Estimated formation events for parent 2")
+
+barplot(p[3, ], xlab = "formation event",
+        ylab = "Mean posterior mixture weight",
+        main = "Simulated formation events for parent 3")
+barplot(apply(pSamples[, 3, ], 2, mean), xlab = "formation event",
+        ylab = "Mean posterior mixture weight",
+        main = "Estimated formation events for parent 3")
+```
+
+
+
+
+<!-- ```{r} -->
+<!-- # n_curve <- 5000 -->
+<!-- mu_mean <- apply(muSamples, 2, mean) -->
+<!-- sigma_mean <- sqrt(apply(sigma2Samples, 2, mean)) -->
+<!-- p_mean <- apply(pSamples, c(2, 3), mean) -->
+<!-- # x <- seq(0, 300 / 2000, length = n_curve) -->
+<!-- dens <- matrix(0, n_curve, 20) -->
+<!-- dens_sim <- matrix(0, n_curve, 20) -->
+<!-- for (i in 1:20) { -->
+<!--     dens[, i] <- dnorm(x, mu_mean[i], sigma_mean[i]) -->
+<!--     dens_sim[, i] <- dnorm(x, mu[i], sigma[i]) -->
+<!-- } -->
+
+
+<!-- order_post <- order(mu_mean) -->
+
+
+
+
+<!-- ggplot( -->
+<!--   data = data.frame( -->
+<!--     mu = c(muSamples), -->
+<!--     idx = rep(1:20, each = nrow(muSamples)) -->
+<!--   ), -->
+<!--   aes (x = mu) -->
+<!-- ) + -->
+<!--   geom_histogram(aes(y = ..density..), bins = 100) + -->
+<!--   facet_wrap(~ idx, ncol = 4) -->
+
+
+<!-- ggplot( -->
+<!--   data = data.frame( -->
+<!--     dens = c(dens), -->
+<!--     idx = rep(1:20, each = nrow(dens)), -->
+<!--     x = x -->
+<!--   ), -->
+<!--   aes (x = x, y = dens) -->
+<!-- ) + -->
+<!--   geom_line() + -->
+<!--   geom_line( -->
+<!--     data = data.frame( -->
+<!--       dens = c(dens_sim), -->
+<!--       idx = rep(1:20, each = nrow(dens_sim)), -->
+<!--       x = x -->
+<!--     ), -->
+<!--     aes(x  = x, y = dens), color = "red" -->
+<!--   ) + -->
+<!--   facet_wrap(~ idx, ncol = 4) + -->
+<!--   xlab("Age in 100 Myr") + -->
+<!--   ggtitle("potential formation events") -->
+
+
+
+<!-- if (!file.exists(here::here("figures", "sim-mixing-recover.png"))) { -->
+<!--   png(file = here::here("figures", "sim-mixing-recover.png"), -->
+<!--       width = 16, height = 9, units = "in", res = 200) -->
+<!--   ## note: the ordering of these will change for each MCMC simulation -->
+
+<!--   # largest_p <- sort(order(p_mean[1, ], decreasing = TRUE)[1:10]) -->
+<!--   # mu_idx <- order(mu) -->
+<!--   # mu_fit_idx <- order(apply(muSamples, 2, mean)[largest_p]) -->
+<!--   #  -->
+<!--   # dat <- data.frame( -->
+<!--   #   dens_fit = c(t(t(dens) * p_mean[1, ])[, mu_fit_idx]), -->
+<!--   #   dens_sim = c(t(t(dens_sim) * p[1, ])[, mu_idx][, 1:10]), -->
+<!--   #   idx = rep(1:10, each = nrow(dens)), -->
+<!--   #   x = x -->
+<!--   # ) -->
+
+<!--   dat <- data.frame( -->
+<!--     dens_fit = c(t(t(dens) * p_mean[1, ])), -->
+<!--     dens_sim = c(t(t(dens_sim) * p[1, ])), -->
+<!--     idx = rep(1:20, each = nrow(dens)), -->
+<!--     x = x -->
+<!--   ) -->
+<!--   ## filter out the highest peaks in the fitted data -->
+<!--   highest_peaks <- dat %>% -->
+<!--     group_by(idx) %>% -->
+<!--     filter(dens_fit == max(dens_fit)) %>% -->
+<!--     arrange(desc(dens_fit)) %>% -->
+<!--     pull(idx) -->
+
+<!--   dat <- data.frame( -->
+<!--     dens_fit = c(t(t(dens) * p_mean[1, ])[, 1:10]), -->
+<!--     dens_sim = c(t(t(dens_sim) * p[1, ])[, highest_peaks[1:10]]), -->
+<!--     idx = rep(1:10, each = nrow(dens)), -->
+<!--     x = x -->
+<!--   ) -->
+
+<!--   sorted_fit <- dat %>% -->
+<!--     group_by(idx) %>% -->
+<!--     filter(dens_fit == max(dens_fit)) %>% -->
+<!--     arrange(x) %>% -->
+<!--     pull(idx) -->
+
+<!--   sorted_sim <- dat %>% -->
+<!--     group_by(idx) %>% -->
+<!--     filter(dens_sim == max(dens_sim)) %>% -->
+<!--     arrange(x) %>% -->
+<!--     pull(idx) -->
+
+<!--   dat <- data.frame( -->
+<!--     dens_fit = c(t(t(dens) * p_mean[1, ])[, 1:10][, sorted_fit]), -->
+<!--     dens_sim = c(t(t(dens_sim) * p[1, ])[, highest_peaks[1:10]][, sorted_sim]), -->
+<!--     idx = rep(1:10, each = nrow(dens)), -->
+<!--     x = x -->
+<!--   ) -->
+
+<!--   print( -->
+<!--     dat %>% -->
+<!--       ggplot(aes (x = x, y = dens_fit)) + -->
+<!--       geom_line() + -->
+<!--       geom_line(aes(x  = x, y = dens_sim), color = "red") + -->
+<!--       facet_wrap(~ idx, ncol = 5) + -->
+<!--       xlab("Age in 100 Myr") + -->
+<!--       ggtitle("estimated formation events for parent 1") -->
+<!--   ) -->
+<!--   dev.off() -->
+<!-- } -->
+
+
+<!-- ggplot( -->
+<!--   data = data.frame( -->
+<!--     dens = c(t(t(dens) * p_mean[3, ])), -->
+<!--     idx = rep(1:20, each = nrow(dens)), -->
+<!--     x = x -->
+<!--   ), -->
+<!--   aes (x = x, y = dens) -->
+<!-- ) + -->
+<!--   geom_line() + -->
+<!--   facet_wrap(~ idx, ncol = 4) + -->
+<!--   xlab("Age in 100 Myr") + -->
+<!--   ggtitle("estimated formation events for parent 2") -->
+
+
+<!-- ggplot( -->
+<!--   data = data.frame( -->
+<!--     dens = c(t(t(dens) * p_mean[1, ])), -->
+<!--     idx = rep(1:20, each = nrow(dens)), -->
+<!--     x = x -->
+<!--   ), -->
+<!--   aes (x = x, y = dens) -->
+<!-- ) + -->
+<!--   geom_line() + -->
+<!--   facet_wrap(~ idx, ncol = 4) + -->
+<!--   xlab("Age in 100 Myr") + -->
+<!--   ggtitle("estimated formation events for parent 3") -->
+
+
+
+
+<!-- ``` -->
+
+
+
 # Bottom-up unmixing simulation study and Figure 4
 
+This section simulates data for the bottom-up experiment where we simulate data from 3 parents and 20 daughters. We begin by simulating data and parameters from the bottom-up model
+
 ## Simulate unmixing data
+
 ```{r}
 set.seed(401)
 D <- 20
@@ -712,18 +950,19 @@ y <- y_tilde + epsilon
 ```
 
 
+Using the simulate data, we plot the simulated parent and children distributions. 
 
 ```{r}
-## Define the number of mixture components for the partents
-daughters <- data.frame(
-  daughter = rep(factor(paste("D", 1:D), levels=paste("D", 1:D)), N),
+## Define the number of mixture components for the parents
+children <- data.frame(
+  child = rep(factor(paste("D", 1:D), levels=paste("D", 1:D)), N),
   age = na.omit(c(y)))
 
 
-g1 <- ggplot(daughters, aes(x=age, group=daughter, fill=daughter)) + 
+g1 <- ggplot(children, aes(x=age, group=child, fill=child)) + 
   geom_histogram(aes(y=..density..)) +
   scale_x_continuous(breaks=c(0, 1, 2, 3, 4), limits=c(0, 4.5)) +
-  facet_wrap( ~ daughter) + theme_bw() + 
+  facet_wrap( ~ child) + theme_bw() + 
   theme(legend.position = "none", 
         axis.title=element_text(size=22), 
         axis.text=element_text(size=18),
@@ -779,6 +1018,8 @@ include_graphics(here::here("figures", "sim-unmixing-nimble.png"))
 
 ## Fit the bottom-up unmixing model to the simulated data
 
+In this section, we define the model for fitting the bottom-up model using NIMBLE code [@nimble2017]. We fit the model for `r n_mcmc + n_burn` iterations discarding the first `r n_burn` iterations as burn-in with the MCMC samples thinned every `r n_thin` iterations resulting in `r n_mcmc / n_thin` posterior samples. We use an adaptive block-Metropolis algorithm during burn-in with variable transformations used to enforce positive support when needed [@haario2001adaptive]. 
+
 ```{r}
 
 ## Model Statement
@@ -800,7 +1041,7 @@ unmix_code <- nimbleCode({
     alphab[j] ~ dgamma(1, 1)
   }
   
-  ## mixing model likelihood for daughters
+  ## mixing model likelihood for children
   for (j in 1:D) {
     for (i in 1:nd[j]) {
       y[i, j] ~ dnorm(y_tilde[i, j], sd = sd_y[i, j]) 
@@ -885,6 +1126,8 @@ if (file.exists(here::here("model-fit", "sim-unmixing-nimble.RData"))) {
 
 ## Figure 4, part a
 
+This following chunks of code generate a plot of the simulated probability density functions (pdfs) for each parent along with the simulated pdf to visually demonstrate the accuracy and precision of the top-down model to reconstruct the pdfs from sample data. This figure is not included in the manuscript but is made available in the appendix to show the estimated pdfs.
+
 ```{r}
 n_samples <- nrow(samples)
 n_curve <- 1000
@@ -918,7 +1161,7 @@ for (j in 1:3) {
 }
 ```
 
-First, we order the parents to fix any label-switching issues from the MCMC.
+First, we order the parents to fix any label-switching issues from the MCMC. This is due to the label-switching problem in Bayesian mixing models. The code below is meant to resolve most of the label-switching issues from the bottom-up unmixing. A full treatment of label-switching is beyond the scope of this article. 
 
 ```{r}
 ## set of possible permutations
@@ -1008,7 +1251,7 @@ if (!file.exists(here::here("figures", "fit-unmix-sim-nimble.png"))) {
       geom_line(data = df_sim, aes(x = x, y = dens), color = "black") +
       theme_bw() +
       ylim(c(0, 6)) +
-      xlab("Simulated Age in 100 Ma") + 
+      xlab("Simulated Age in 100 Myr") + 
       ylab("Density") +
       theme(
         plot.title   = element_text(size = 32, hjust = 0.5),
@@ -1032,64 +1275,182 @@ if (!file.exists(here::here("figures", "fit-unmix-sim-nimble.png"))) {
 
 ## Figure 4, part b
 
+The following code generates the ternary diagram which represents the proportions or the parents that are present in four of the simulated children. The blue shadings are proportional to posterior probability and the orange triangle is the simulated true value.
 
 ```{r}
 dat_try <- data.frame(
   P1        = c(phiSamples[, 1, ]),
   P2        = c(phiSamples[, 2, ]),
   P3        = c(phiSamples[, 3, ]),
-  daughters = rep(
-    factor(paste("Daughter", 1:D), levels = paste("Daughter", 1:D)),
+  children = rep(
+    factor(paste("Child", 1:D), levels = paste("Child", 1:D)),
     each = n_samples),
   truth1    = rep(c(phi[, best_perm[1]]), each = n_samples),
   truth2    = rep(c(phi[, best_perm[2]]), each = n_samples),
   truth3    = rep(c(phi[, best_perm[3]]), each = n_samples)
 )
 
-subset_to_plot <- paste("Daughter", 1:4)
+subset_to_plot <- paste("Child", 1:4)
 
-if (!file.exists(here::here("figures", "fit-unmix-daughters-sim-nimble.png"))) {
-  png(file = here::here("figures", "fit-unmix-daughters-sim-nimble.png"),
-      width = 2 * 6, height = 2 * 6, units = "in", res = 300)
-  print(ggtern(data = subset(dat_try, daughters %in% subset_to_plot),
+
+if (!file.exists(here::here("figures", "fit-unmix-children-sim-nimble-hex.png"))) {
+
+  p1 <- ggtern(data = subset(dat_try, children %in% subset_to_plot[1]),
                aes(x = P1, y = P2, z = P3)) +
-          geom_point(alpha = 0.2, size = 2.5) +
-          limit_tern(breaks = c(1/3, 2/3), 
-                     labels = c(33, 66), minor_breaks=NULL) +
-          stat_density_tern(
-            geom      = 'polygon',
-                            n         = 200,
-                            aes(fill  = ..level..)
-          ) +
-          scale_fill_distiller(palette = "Blues", direction = 1) +
-          geom_point(alpha = 0.15) + 
-          geom_point(aes(x = truth1, y = truth2, z = truth3), 
-                     color = "orange", shape = 17, size = 4) +
-          theme_bw() +
-          theme(
-            legend.position      = "none", 
-            tern.axis.arrow.text = element_text(size=28),
-            axis.title           = element_text(size=40),
-            axis.text            = element_text(size=32),
-            strip.background     = element_blank(),
-            panel.spacing       = unit(1.5, "lines"),
-            strip.text           = element_text(
-              margin = margin(t = 0, r = 0, b = 14, l = 0, "pt"),
-              size   = 68
-            )
-          ) +
-          labs(
-            x = "P1",
-            y = "P2",
-            z = "P3"
-          ) +
-          theme_nomask() +
-          facet_wrap(~ daughters, ncol=2))
+    # geom_point(alpha = 0.2, size = 2.5) +
+    limit_tern(breaks = c(1/3, 2/3), 
+               labels = c(33, 66), minor_breaks=NULL) +
+    # stat_density_tern(
+    #   geom      = 'polygon',
+    #                   n         = 200,
+    #                   aes(fill  = ..level..)
+    # ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15) + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    geom_point(aes(x = truth1, y = truth2, z = truth3), 
+               color = "orange", shape = 17, size = 4) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=28),
+      axis.title           = element_text(size=40),
+      axis.text            = element_text(size=32),
+      strip.background     = element_blank(),
+      panel.spacing       = unit(1.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[1])
+  
+  p2 <- ggtern(data = subset(dat_try, children %in% subset_to_plot[2]),
+               aes(x = P1, y = P2, z = P3)) +
+    # geom_point(alpha = 0.2, size = 2.5) +
+    limit_tern(breaks = c(1/3, 2/3), 
+               labels = c(33, 66), minor_breaks=NULL) +
+    # stat_density_tern(
+    #   geom      = 'polygon',
+    #                   n         = 200,
+    #                   aes(fill  = ..level..)
+    # ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15) + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    geom_point(aes(x = truth1, y = truth2, z = truth3), 
+               color = "orange", shape = 17, size = 4) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=28),
+      axis.title           = element_text(size=40),
+      axis.text            = element_text(size=32),
+      strip.background     = element_blank(),
+      panel.spacing       = unit(1.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[2])
+  
+  p3 <- ggtern(data = subset(dat_try, children %in% subset_to_plot[3]),
+               aes(x = P1, y = P2, z = P3)) +
+    # geom_point(alpha = 0.2, size = 2.5) +
+    limit_tern(breaks = c(1/3, 2/3), 
+               labels = c(33, 66), minor_breaks=NULL) +
+    # stat_density_tern(
+    #   geom      = 'polygon',
+    #                   n         = 200,
+    #                   aes(fill  = ..level..)
+    # ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15) + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    geom_point(aes(x = truth1, y = truth2, z = truth3), 
+               color = "orange", shape = 17, size = 4) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=28),
+      axis.title           = element_text(size=40),
+      axis.text            = element_text(size=32),
+      strip.background     = element_blank(),
+      panel.spacing       = unit(1.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[3])
+  
+  p4 <- ggtern(data = subset(dat_try, children %in% subset_to_plot[4]),
+               aes(x = P1, y = P2, z = P3)) +
+    # geom_point(alpha = 0.2, size = 2.5) +
+    limit_tern(breaks = c(1/3, 2/3), 
+               labels = c(33, 66), minor_breaks=NULL) +
+    # stat_density_tern(
+    #   geom      = 'polygon',
+    #                   n         = 200,
+    #                   aes(fill  = ..level..)
+    # ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15) + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    geom_point(aes(x = truth1, y = truth2, z = truth3), 
+               color = "orange", shape = 17, size = 4) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=28),
+      axis.title           = element_text(size=40),
+      axis.text            = element_text(size=32),
+      strip.background     = element_blank(),
+      panel.spacing       = unit(1.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[4])
+  
+  png(file = here::here("figures", "fit-unmix-children-sim-nimble-hex.png"),
+      width = 2 * 6, height = 2 * 6, units = "in", res = 300)
+
+  print(multiplot(p1, p2, p3, p4, cols = 2))
   dev.off()
 }
 ```
 
 ## Figure 4, part c
+
+The code below generate the figure showing the simulated cumulative distribution functions (cdfs) for the parents in black and the posterior estimates of the cdfs in red.
+
 ```{r}
 layout(1)
 ## plot cdf
@@ -1132,7 +1493,7 @@ if (!file.exists(here::here("figures", "fit-unmix-cdf-sim-nimble.png"))) {
           margin = margin(t = 0, r = 10, b = 0, l = 0)
         )
       ) + 
-      xlab("Simulated Age in 100 Ma") + 
+      xlab("Simulated Age in 100 Myr") + 
       ylab("Cumulative Density")
   )
   dev.off()
@@ -1151,9 +1512,9 @@ include_graphics(here::here("figures", "fit-unmix-sim-nimble.png"))
 \begin{subfigure}[t]{0.32\textwidth}
 \centering
 ```{r, echo = FALSE, out.width = "0.95\\linewidth", fig.align = "center"}
-include_graphics(here::here("figures", "fit-unmix-daughters-sim-nimble.png"))
+include_graphics(here::here("figures", "fit-unmix-children-sim-nimble.png"))
 ```
-\caption{Posterior estimates of mixing proportions for 4 of the 20 daughters from the unmixing model shown. The posterior samples are black circles and the simulated true mixing proportions are shown as orange triangles.}
+\caption{Posterior estimates of mixing proportions for 4 of the 20 children from the unmixing model shown. The posterior samples are black circles and the simulated true mixing proportions are shown as orange triangles.}
 \label{fig:sim-unmix2}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.32\textwidth}
@@ -1170,13 +1531,16 @@ include_graphics(here::here("figures", "fit-unmix-cdf-sim-nimble.png"))
 
 ### Estimation of accuracy of mixing proportions
 
+This code shows the mean difference in proportion for each component. In the simulated data, the average deviation from the posterior mean proportion to the simulated proportion is `r round(mean(abs(phi[, best_perm] - phi_mean)), digits = 3)`.
+
 ```{r}
 mean(abs(phi[, best_perm] - phi_mean))
 ```
 
 
-# Application Data and Figure 5 (parents and daughters)
+# Application Data and Figure 6 (parents and children)
 
+The code below shows the case study data from @sickmann2016detrital. The histograms show the sampled ages for the parents in the top subfigure and the children in the bottom subfigure.
 
 ```{r}
 # excel_sheets(here::here("data", "Sickmann_etal_2016_Data.xlsx"))
@@ -1215,7 +1579,7 @@ for (i in 1:D) {
 ## Define the number of mixture components for the partents
 
 samples <- data.frame(
-  source = c(rep("Daughter", sum(n)),
+  source = c(rep("Child", sum(n)),
              rep("Parent", sum(nB))),
   site = c(rep(colnames(y), n),
            rep(colnames(y_parents), nB)),
@@ -1248,11 +1612,11 @@ p1 <- ggplot(subset(samples, age < 300 & source == "Parent"),
       margin = margin(t = 0, r = 10, b = 0, l = 0)
     )
   ) +
-  xlab("Age in 100 Ma") +
+  xlab("Age in 100 Myr") +
   ylab("Density") +
-  ggtitle("Parents, First 300 Ma")
+  ggtitle("Parents, First 300 Myr")
 
-p2 <- ggplot(subset(samples, age < 300 & source == "Daughter"), 
+p2 <- ggplot(subset(samples, age < 300 & source == "Child"), 
              aes(x = age / 100, group = site)) +
   geom_histogram(aes(y=..density..), bins = 200) +
   facet_wrap( ~ site, nrow = 2) +
@@ -1275,9 +1639,9 @@ p2 <- ggplot(subset(samples, age < 300 & source == "Daughter"),
       margin = margin(t = 0, r = 10, b = 0, l = 0)
     )
   ) +
-  xlab("Age in 100 Ma") +
+  xlab("Age in 100 Myr") +
   ylab("Density") +
-  ggtitle("Daughters, First 300 Ma")
+  ggtitle("Children, First 300 Myr")
 
 grid.arrange(
   grobs = list(p1, p2),
@@ -1288,7 +1652,9 @@ dev.off()
 ```
 
 
-# Application Data and Figure 6
+# Top-down mixing model and Figure 7 for case study
+
+The code in this section fits the top-down mixing model to the case study data. In this example, we fit the top-down mixing model using just the T693 child.
 
 ## Load top-down mixing data
 
@@ -1302,6 +1668,7 @@ colnames(dat) <- c("T693", "T693_error", "ANDSNRPAR",
                    "CAR", "CAR_error")
 ```
 
+The code below compiles the NIMBLE code for the top-down mixing model which was defined in section \@ref(top-down) with the case study data[@nimble2017]. We fit the model for `r n_mcmc + n_burn` iterations discarding the first `r n_burn` iterations as burn-in with the MCMC samples thinned every `r n_thin` iterations resulting in `r n_mcmc / n_thin` posterior samples. We use an adaptive block-Metropolis algorithm during burn-in with variable transformations used to enforce positive support when needed [@haario2001adaptive].
 
 ```{r}
 ## Divide ages by 2000 for numeric stability
@@ -1383,7 +1750,9 @@ if (file.exists(here::here("model-fit", "fit-mixing-data-nimble.RData"))) {
 }
 ```
 
-## Figure 6, part a
+## Figure 7, part a
+
+This following chunks of code generate a plot of the simulated probability density functions (pdfs) for each parent. This figure is not included in the manuscript but is made available in the appendix to show the estimated pdfs. We also generate a second figure where the pdf is plotted along with a kernel density estimate (kde) for each parent dataset to compare the differences between the joint Bayesian models and the marginal kde models.
 
 
 ```{r}
@@ -1449,7 +1818,7 @@ if (!file.exists(here::here("figures", "fit-nimble.png"))) {
   
   png(file = here::here("figures", "fit-nimble.png"),
       width = 6, height = 6, units = "in", res = 200)
-  ## note: multiply x by 100 to be in 100Ma years
+  ## note: multiply x by 100 to be in 100Myr years
   print(
     ggplot(data = subset(dat_plot, values < 300 / 2000),  
            aes(x = 2000 / 100 * values, group = site)) +
@@ -1458,7 +1827,44 @@ if (!file.exists(here::here("figures", "fit-nimble.png"))) {
       geom_line(data = subset(df, x < 300 / 2000), 
                 aes(x = 2000 / 100 * x, y = curve / 2000 * 100, group = iterations),
                 alpha = 0.005, color = "red") + 
-      xlab("Age in 100 Ma") + 
+      xlab("Age in 100 Myr") + 
+      ylab("Density") +
+      theme_bw() +
+      ylim(c(0, 8)) +
+      theme(
+        plot.title   = element_text(size=32, face="bold", hjust=0.5),
+        axis.text.x  = element_text(size = 24), 
+        strip.text.x = element_text(size = 22),
+        axis.text.y  = element_text(size = 24), 
+        axis.title.x = element_text(
+          size   = 26,
+          margin = margin(t = 5, r = 0, b = 0, l = 0)
+        ), 
+        axis.title.y = element_text(
+          size   = 26, 
+          margin = margin(t = 0, r = 10, b = 0, l = 0)
+        )
+      ) 
+  )
+  dev.off()
+}
+
+if (!file.exists(here::here("figures", "fit-nimble-kde.png"))) {
+  
+  png(file = here::here("figures", "fit-nimble-kde.png"),
+      width = 6, height = 6, units = "in", res = 200)
+  ## note: multiply x by 100 to be in 100Myr years
+
+  print(
+    ggplot(data = subset(dat_plot, values < 300 / 2000),  
+           aes(x = 2000 / 100 * values, group = site)) +
+      facet_wrap(~ site, ncol = 1) +
+      geom_histogram(aes(y = ..density..), bins = 100, fill = "black", alpha = 0.5)  +
+          geom_density(aes(group = site), color = "blue", fill = NA, adjust = 0.5) +
+      geom_line(data = subset(df, x < 300 / 2000),
+                aes(x = 2000 / 100 * x, y = curve / 2000 * 100, group = iterations),
+                alpha = 0.005, color = "red") +
+      xlab("Age in 100 Myr") + 
       ylab("Density") +
       theme_bw() +
       ylim(c(0, 8)) +
@@ -1483,7 +1889,10 @@ if (!file.exists(here::here("figures", "fit-nimble.png"))) {
 
 
 
-## Figure 6, part b
+## Figure 7, part b
+
+The following code generates the ternary diagram which represents the proportions or the parents that are present in the child T693. The blue shadings are proportional to posterior probability. There are differences 
+
 
 ```{r}
 dat_ggtern <- data.frame(
@@ -1523,13 +1932,94 @@ if (!file.exists(here::here("figures", "mixing-density-nimble.png"))) {
           margin = margin(t = 0, r = 0, b = 14, l = 0, "pt"),
           size   = 68)
       ) +
-      ggtitle("Daughter T693")
+      ggtitle("Child T693")
   )
   dev.off()
 }
+
+## plot the posterior distribution using a hex geometry
+if (!file.exists(here::here("figures", "mixing-density-nimble-hex.png"))) {
+  png(file = here::here("figures", "mixing-density-nimble-hex.png"),
+      width = 6, height = 6, units = "in", res = 200)
+  
+  print(
+    ggtern(data = dat_ggtern, aes(x = P1, y = P2, z = P3)) +
+      # stat_density_tern(geom='polygon',
+      #                   n         = 200,
+      #                   aes(fill  = ..level..)) +
+      geom_point(alpha=0.075, color="black") +
+      geom_hex_tern(bins = 50, size = 0.01) +
+      limit_tern(breaks=c(1/3, 2/3),
+                 labels=c(33, 66), minor_breaks=NULL) +
+      scale_fill_distiller(palette="Blues", direction=1) +
+      theme(axis.title=element_text(size=10))+
+      labs(x="P1", y="P2", z="P3") +
+      theme_bw() +
+      theme(
+        legend.position      = "none",
+        plot.title           = element_text(hjust = 0.5, size = 30),
+        tern.axis.arrow.text = element_text(size=28),
+        axis.title           = element_text(size=20),
+        axis.text            = element_text(size=22),
+        strip.background     = element_blank(),
+        panel.spacing       = unit(1.5, "lines"),
+        strip.text           = element_text(
+          margin = margin(t = 0, r = 0, b = 14, l = 0, "pt"),
+          size   = 68)
+      ) +
+      ggtitle("Child T693")
+  )
+  dev.off()
+}
+
+
+##
+## Plot the distribution using point estimates from other methods
+## see Sharman and Johnstone (2017) Sediment unmixing using detrital geochronology for details)
+##
+
+dat_other <- read_csv(here::here("data", "T693-top-down-other-methods.csv"))
+dat_other
+
+
+if (!file.exists(here::here("figures", "mixing-density-nimble-hex-other-models.png"))) {
+    png(file = here::here("figures", "mixing-density-nimble-hex-other-models.png"),
+        width = 6, height = 6, units = "in", res = 200)
+    
+    print(
+        ggtern(data = dat_ggtern, aes(x = P1, y = P2, z = P3)) +
+            geom_point(alpha=0.075, color="black") +
+            geom_hex_tern(bins = 50, size = 0.01, show.legend = FALSE) +
+            limit_tern(breaks=c(1/3, 2/3),
+                       labels=c(33, 66), minor_breaks=NULL) +
+            scale_fill_distiller(palette="Blues", direction=1) +
+            theme(axis.title=element_text(size=10))+
+            labs(x="P1", y="P2", z="P3") +
+            theme_bw() +
+            theme(
+                plot.title           = element_text(hjust = 0.5, size = 30),
+                tern.axis.arrow.text = element_text(size=28),
+                axis.title           = element_text(size=20),
+                axis.text            = element_text(size=22),
+                strip.background     = element_blank(),
+                panel.spacing       = unit(1.5, "lines"),
+                strip.text           = element_text(
+                    margin = margin(t = 0, r = 0, b = 14, l = 0, "pt"),
+                    size   = 68)
+            ) +
+            ggtitle("Child T693") +
+            geom_point(data = dat_other %>%
+                           pivot_wider(names_from = Parent, values_from = Value),
+                           aes(x = P1, y = P2, z = P3, color = Method), 
+                       inherit.aes = FALSE, alpha = 0.75) +
+              scale_color_manual(values = c("Dmax" = "red", "Likeness" = "orange", "r2 PDP" = "purple", "Similarity" = "salmon", "Vmax" = "pink"))
+    )
+    dev.off()
+}
+
 ```
 
-We can also generate credible intervals for the mixing proportions. Below the contour lines represent the 50, 90, 95, and 99% credible intervals under the assumption of a Gaussian distrubution under an additive log-ratio transformation.
+We can also generate credible intervals for the mixing proportions. Below the contour lines represent the 50, 90, 95, and 99% credible intervals under the assumption of a Gaussian distribution under an additive log-ratio transformation.
 
 ```{r, out.width = '33%', fig.align = 'center'}
 if (!file.exists(here::here("figures", "mixing-ci-nimble.png"))) {
@@ -1550,7 +2040,7 @@ knitr::include_graphics(here::here("figures", "mixing-ci-nimble.png"))
 ```
 
 
-## Figure 6, part c
+## Figure 7, part c
 
 ```{r}
 delta_x <- x[2] - x[1]
@@ -1602,9 +2092,109 @@ if (!file.exists(here::here("figures", "fit-mix-cdf-data-nimble.png"))) {
           margin = margin(t = 0, r = 10, b = 0, l = 0)
         )
       ) +
-      xlab("Age in 100 Ma") +
+      xlab("Age in 100 Myr") +
       ylab("Cumulative Density") +
-      ggtitle("First 300 Ma")
+      ggtitle("First 300 Myr")
+  )
+  dev.off()
+}
+```
+
+
+
+```{r}
+## construct density estimate for child and add to parents
+
+
+if (file.exists(here::here("model-fit", "fit-mix-density-child.RData"))) {
+    load(here::here("model-fit", "fit-mix-density-child.RData"))
+} else {
+  
+  library(future)
+  plan(multiprocess, workers = 6)
+
+    df_child <- furrr::future_map_dfr(
+        1:nrow(phiSamples), function(i)
+            df %>%
+            filter(iterations == i) %>%
+            group_by(x) %>% 
+            mutate(curve = as.vector(curve %*% phiSamples[i, ])) %>%
+            select(iterations, x, curve) %>%
+            distinct() 
+    )
+    df_child <- df_child %>%
+      ungroup()
+    save(df_child, file = here::here("model-fit", "fit-mix-density-child.RData"))
+}
+
+df_child$site <- "Child T693"
+
+df_full <- rbind(df, df_child)
+
+
+delta_x <- x[2] - x[1]
+
+## Empirical CDF estimate
+p2_ecdf <- ecdf(dat$SAL)
+p1_ecdf <- ecdf(dat$CAR)
+p3_ecdf <- ecdf(dat$ANDSNRPAR)
+child_ecdf <- ecdf(dat$T693)
+
+# df_ecdf <- data.frame(
+#   ecdf   = c(p3_ecdf(x * 2000), p2_ecdf(x * 2000), p1_ecdf(x * 2000)),
+#   x      = rep(x * 2000, times = B), 
+#   site = rep(c("Parent 3", "Parent 2", "Parent 1"), each = n_curve)
+# )
+
+df_ecdf <- data.frame(
+  ecdf   = c(p3_ecdf(x * 2000), p2_ecdf(x * 2000), p1_ecdf(x * 2000), 
+             child_ecdf(x * 2000)),
+  x      = rep(x * 2000, times = B + 1), 
+  site = rep(c("Parent 3", "Parent 2", "Parent 1", "Child T693"), each = n_curve)
+)
+
+## Model-based CDF estimate
+# df$site <- factor(df$site, levels = c("Parent 1", "Parent 2", "Parent 3"))
+## reorder the factor levels
+df_full$site <- factor(df_full$site, levels = c("Parent 1", "Parent 2", "Parent 3", "Child T693"))
+df_cdf_fit <- df_full %>%
+  # df_cdf_fit <- df %>%
+  group_by(iterations, site) %>%
+  mutate(fit = cumsum(curve * delta_x))
+
+
+if (!file.exists(here::here("figures", "fit-mix-cdf-data-nimble-child.png"))) {
+  png(file = here::here("figures", "fit-mix-cdf-data-nimble-child.png"),
+      width = 6, height = 6, units = "in", res = 200)
+  print(
+    ggplot(data = subset(df_cdf_fit, x < 300 / 2000),
+           aes(x = x / 100, y = fit)) + 
+      geom_line(data = subset(df_cdf_fit, x < 300 / 2000), 
+                aes(x = x / 100 * 2000, y = fit, group = iterations),
+                alpha = 0.0025, color = "red", lwd = 2) +
+      geom_line(data = subset(df_ecdf, x < 300), aes(x = x / 100, y = ecdf),
+                color = "black", lwd = 1) +
+      facet_wrap(~ site, ncol = 1) +
+      theme_bw() + 
+      theme(
+        legend.position = "none",
+        plot.title      = element_text(size=26, hjust=0.5),
+        axis.text.x     = element_text(size = 22),
+        strip.text.x    = element_text(size = 20),
+        axis.text.y     = element_text(size = 22),
+        panel.spacing.x   = unit(1.0, "lines"),
+        axis.title.x    = element_text(
+          size   = 22,
+          margin = margin(t = 5, r = 0, b = 0, l = 0)
+        ),
+        axis.title.y    = element_text(
+          size   = 22,
+          margin = margin(t = 0, r = 10, b = 0, l = 0)
+        )
+      ) +
+      xlab("Age in 100 Myr") +
+      ylab("Cumulative Density") +
+      ggtitle("First 300 Myr")
   )
   dev.off()
 }
@@ -1617,7 +2207,7 @@ if (!file.exists(here::here("figures", "fit-mix-cdf-data-nimble.png"))) {
 ```{r, echo = FALSE, out.width = "0.95\\linewidth", fig.align = "center"}
 include_graphics(here::here("figures", "fit-nimble.png"))
 ```
-\caption{Posterior estimates of the parent and daughter distribution functions shown in red. The posterior mean distribution function is shown in black with the histogram plotting the observed data. The left plot shows the full age distribution and the right plot shows the age distribution for years 0-300 Ma.}
+\caption{Posterior estimates of the parent and child distribution functions shown in red. The posterior mean distribution function is shown in black with the histogram plotting the observed data. The left plot shows the full age distribution and the right plot shows the age distribution for years 0-300 Myr.}
 \label{fig:mixing-density-data}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.32\textwidth}
@@ -1633,13 +2223,47 @@ include_graphics(here::here("figures", "mixing-density-nimble.png"))
 ```{r, echo = FALSE, out.width = "0.95\\linewidth", fig.align = "center"}
 include_graphics(here::here("figures", "fit-mix-cdf-data-nimble.png"))
 ```
-\caption{Posterior estimates of the parent and daughter CDFs shown in red. The empirical CDFs calculated from the raw data are shown in black.}
+\caption{Posterior estimates of the parent and child CDFs shown in red. The empirical CDFs calculated from the raw data are shown in black.}
 \label{fig:mixing-cdf-data}
 \end{subfigure}
-\caption{Results from the top-down mixing applied to sample T693 show that the mixing model is able to accurately reconstruct the parent and daughter distributions and produce estimates of the mixing proportions with associated uncertainty.}
+\caption{Results from the top-down mixing applied to sample T693 show that the mixing model is able to accurately reconstruct the parent and child distributions and produce estimates of the mixing proportions with associated uncertainty.}
 \end{figure}
 
-# Application Data and Figure 7
+
+* Posterior derived quantities
+
+```{r}
+## estimated number of mineral formation events for parent 1
+estimated_K <- apply(pSamples[, 1, ], 1, function(x) sum(x > 0.01)) 
+mean(estimated_K)
+quantile(estimated_K, c(0.025, 0.975))
+
+estimated_K <- apply(pSamples[, 1, ], 1, function(x) sum(x > 0.05)) 
+mean(estimated_K)
+quantile(estimated_K, c(0.025, 0.975))
+
+
+## estimated number of mineral formation events for parent 2
+estimated_K <- apply(pSamples[, 2, ], 1, function(x) sum(x > 0.01)) 
+mean(estimated_K)
+quantile(estimated_K, c(0.025, 0.975))
+
+estimated_K <- apply(pSamples[, 2, ], 1, function(x) sum(x > 0.05)) 
+mean(estimated_K)
+quantile(estimated_K, c(0.025, 0.975))
+
+
+## estimated number of mineral formation events for parent 3
+estimated_K <- apply(pSamples[, 3, ], 1, function(x) sum(x > 0.01)) 
+mean(estimated_K)
+quantile(estimated_K, c(0.025, 0.975))
+
+estimated_K <- apply(pSamples[, 3, ], 1, function(x) sum(x > 0.05)) 
+mean(estimated_K)
+quantile(estimated_K, c(0.025, 0.975))
+```
+
+# Application Data and Figure 8
 
 ## Load bottom-up unmixing data
 
@@ -1689,8 +2313,8 @@ for (i in 1:D) {
 
 ## Define the number of mixture components for the partents
 
-daughters <- data.frame(
-  daughter = rep(colnames(y), nd),
+children <- data.frame(
+  child = rep(colnames(y), nd),
   age      = na.omit(unlist(y))
 )
 ```
@@ -1717,10 +2341,10 @@ if (file.exists(here::here("model-fit", "unmixing-nimble.RData"))) {
     K            = 20, 
     B            = 3,
     s2_sigma2    = 0.000001,
-    upper_sigma2 = (50/2000)^2    ## longest mineral formation event is 50 Ma
+    upper_sigma2 = (50/2000)^2    ## longest mineral formation event is 50 Myr
   )
   
-  # sqrt(consts$s2_sigma2) * 2000 gives about a 2Ma year creation standard devation
+  # sqrt(consts$s2_sigma2) * 2000 gives about a 2Myr year creation standard devation
   
   inits <- list(
     y_tilde   = as.matrix(y) / 2000,
@@ -1764,7 +2388,7 @@ if (file.exists(here::here("model-fit", "unmixing-nimble.RData"))) {
 }  
 ```
 
-## Figure 7, part a
+## Figure 8, part a
 
 ```{r}
 n_samples <- nrow(samples)
@@ -1896,7 +2520,7 @@ if (!file.exists(here::here("figures", "fit-unmix-data-nimble.png"))) {
                 alpha = 0.005, color = "red") +
       facet_wrap(~ site, ncol = 1) +       
       theme_bw() +
-      xlab("Age in 100 Ma") + 
+      xlab("Age in 100 Myr") + 
       ylab("Density") +
       theme(
         plot.title   = element_text(size = 32, hjust = 0.5),
@@ -1919,7 +2543,7 @@ if (!file.exists(here::here("figures", "fit-unmix-data-nimble.png"))) {
 
 
 
-## Figure 7, part b
+## Figure 8, part b
 
 ```{r}
 ## Note: when re-fitting the model, the order of the parents can change
@@ -1933,18 +2557,18 @@ dat_try <- data.frame(
   P1        = c(phiSamples_perm[, 1, ]),
   P2        = c(phiSamples_perm[, 2, ]),
   P3        = c(phiSamples_perm[, 3, ]), 
-  daughters = rep(factor(colnames(y)), each = n_samples)
+  children = rep(factor(colnames(y)), each = n_samples)
 )
 
 subset_to_plot <- c("MAN", "T1135", "GSB", "T693")
 
-if (!file.exists(here::here("figures", "fit-unmix-daughters-data-nimble.png"))) {
+if (!file.exists(here::here("figures", "fit-unmix-children-data-nimble.png"))) {
   
-  png(file = here::here("figures", "fit-unmix-daughters-data-nimble.png"),
+  png(file = here::here("figures", "fit-unmix-children-data-nimble.png"),
       width = 2 * 6, height = 2 * 6, units = "in", res = 300)
   print(
     ggtern(
-    data = subset(dat_try, daughters %in% subset_to_plot),
+    data = subset(dat_try, children %in% subset_to_plot),
     aes(x = P1, y = P2, z = P3)) +
       limit_tern(
         breaks       = c(1 / 3, 2 / 3), 
@@ -1976,15 +2600,240 @@ if (!file.exists(here::here("figures", "fit-unmix-daughters-data-nimble.png"))) 
         z = "P3"
       ) +
       theme_nomask() +
-      facet_wrap(~ daughters, ncol = 2)
+      facet_wrap(~ children, ncol = 2)
     )
   dev.off()
 }
+
+
+if (!file.exists(here::here("figures", "fit-unmix-children-data-nimble-hex.png"))) {
+  
+  p1 <- ggtern(
+    data = subset(dat_try, children %in% subset_to_plot[1]),
+    aes(x = P1, y = P2, z = P3)) +
+    limit_tern(
+      breaks       = c(1 / 3, 2 / 3), 
+      labels       = c(33, 66), 
+      minor_breaks = NULL
+    ) +
+    # stat_density_tern(
+    #     geom      = 'polygon',
+    #     n         = 200,
+    #     aes(fill  = ..level..)
+    #   ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15, color = "black") + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=24),
+      axis.title           = element_text(size=36),
+      axis.text            = element_text(size=24),
+      strip.background     = element_blank(),
+      panel.spacing        = unit(2.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[1])
+  
+  p2 <- ggtern(
+    data = subset(dat_try, children %in% subset_to_plot[2]),
+    aes(x = P1, y = P2, z = P3)) +
+    limit_tern(
+      breaks       = c(1 / 3, 2 / 3), 
+      labels       = c(33, 66), 
+      minor_breaks = NULL
+    ) +
+    # stat_density_tern(
+    #     geom      = 'polygon',
+    #     n         = 200,
+    #     aes(fill  = ..level..)
+    #   ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15, color = "black") + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=24),
+      axis.title           = element_text(size=36),
+      axis.text            = element_text(size=24),
+      strip.background     = element_blank(),
+      panel.spacing        = unit(2.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[2])
+  
+  p3 <- ggtern(
+    data = subset(dat_try, children %in% subset_to_plot[3]),
+    aes(x = P1, y = P2, z = P3)) +
+    limit_tern(
+      breaks       = c(1 / 3, 2 / 3), 
+      labels       = c(33, 66), 
+      minor_breaks = NULL
+    ) +
+    # stat_density_tern(
+    #     geom      = 'polygon',
+    #     n         = 200,
+    #     aes(fill  = ..level..)
+    #   ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15, color = "black") + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=24),
+      axis.title           = element_text(size=36),
+      axis.text            = element_text(size=24),
+      strip.background     = element_blank(),
+      panel.spacing        = unit(2.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[3])
+  
+  p4 <- ggtern(
+    data = subset(dat_try, children %in% subset_to_plot[4]),
+    aes(x = P1, y = P2, z = P3)) +
+    limit_tern(
+      breaks       = c(1 / 3, 2 / 3), 
+      labels       = c(33, 66), 
+      minor_breaks = NULL
+    ) +
+    # stat_density_tern(
+    #     geom      = 'polygon',
+    #     n         = 200,
+    #     aes(fill  = ..level..)
+    #   ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15, color = "black") + 
+    geom_hex_tern(bins = 50, size = 0.01) +
+    theme_bw() +
+    theme(
+      legend.position      = "none", 
+      tern.axis.arrow.text = element_text(size=24),
+      axis.title           = element_text(size=36),
+      axis.text            = element_text(size=24),
+      strip.background     = element_blank(),
+      panel.spacing        = unit(2.5, "lines"),
+      plot.title           = element_text(
+        margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+        size   = 48,
+        hjust  = 0.5)
+    ) +
+    labs(
+      x = "P1",
+      y = "P2",
+      z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[4])
+  
+  png(file = here::here("figures", "fit-unmix-children-data-nimble-hex.png"),
+      width = 2 * 6, height = 2 * 6, units = "in", res = 300)
+  print(multiplot(p1, p2, p3, p4, cols = 2))
+  dev.off()
+}
+
+
+
+##
+## Plot the distribution for T693 using point estimates from other methods
+## see Sharman and Johnstone (2017) Sediment unmixing using detrital geochronology for details)
+##
+
+
+dat_other <- read_csv(here::here("data", "T693-bottom-up-other-methods.csv"))
+dat_other
+
+dat_other %>%
+    pivot_wider(names_from = Parent, values_from = Value)
+
+subset_to_plot <- c("T693")
+
+if (!file.exists(here::here("figures", "fit-unmix-children-data-nimble-hex.png"))) {
+    
+  p1 <- ggtern(
+    data = subset(dat_try, children %in% subset_to_plot[1]),
+    aes(x = P1, y = P2, z = P3)) +
+    limit_tern(
+        breaks       = c(1 / 3, 2 / 3), 
+        labels       = c(33, 66), 
+        minor_breaks = NULL
+    ) +
+    # stat_density_tern(
+    #     geom      = 'polygon',
+    #     n         = 200,
+    #     aes(fill  = ..level..)
+    #   ) +
+    scale_fill_distiller(palette = "Blues", direction = 1) +
+    # geom_point(alpha = 0.15, color = "black") + 
+    geom_hex_tern(bins = 50, size = 0.01, show.legend = FALSE) +
+    theme_bw() +
+    theme(
+        tern.axis.arrow.text = element_text(size=24),
+        axis.title           = element_text(size=36),
+        axis.text            = element_text(size=24),
+        strip.background     = element_blank(),
+        panel.spacing        = unit(2.5, "lines"),
+        plot.title           = element_text(
+            margin = margin(t = 0, r = 10, b = 14, l = 0, "pt"),
+            size   = 48,
+            hjust  = 0.5)
+    ) +
+    labs(
+        x = "P1",
+        y = "P2",
+        z = "P3"
+    ) +
+    theme_nomask() +
+    ggtitle(subset_to_plot[1]) +
+    geom_point(data = dat_other %>%
+                   pivot_wider(names_from = Parent, values_from = Value),
+               aes(x = P1, y = P2, z = P3, color = With_GSB), 
+               inherit.aes = FALSE, alpha = 0.75) +
+    scale_color_manual(values = c("yes" = "red", "no" = "orange"))
+    
+    
+
+    png(file = here::here("figures", "fit-unmix-children-data-nimble-hex-other-models.png"),
+        width = 6, height = 6, units = "in", res = 200)
+    print(p1)
+    dev.off()
+}
+
 ```
 
 
 
-## Figure 7, part c
+## Figure 8, part c
 
 ```{r}
 ## plot cdf
@@ -2045,9 +2894,9 @@ if (!file.exists(here::here("figures", "fit-unmix-cdf-data-nimble.png"))) {
           margin = margin(t = 0, r = 10, b = 0, l = 0)
         )
       ) +
-      xlab("Age in 100 Ma") +
+      xlab("Age in 100 Myr") +
       ylab("Cumulative Density") +
-      ggtitle("First 300 Ma")
+      ggtitle("First 300 Myr")
   )
   dev.off()
 }
@@ -2058,17 +2907,17 @@ if (!file.exists(here::here("figures", "fit-unmix-cdf-data-nimble.png"))) {
 \begin{figure}
 \begin{subfigure}[t]{0.32\textwidth}
 \centering\includegraphics[width=0.95\linewidth]{../figures/fit-unmix-data-nimble.png}
-\caption{Posterior estimates of the unobserved parent distribution functions shown in red. The upper plot shows the full age distribution and the lower plot shows the age distribution over the years 0-300 Ma. The histogram shows to observed data.}
+\caption{Posterior estimates of the unobserved parent distribution functions shown in red. The upper plot shows the full age distribution and the lower plot shows the age distribution over the years 0-300 Myr. The histogram shows to observed data.}
 \label{fig:unmixing-density-data}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.32\textwidth}
-\centering\includegraphics[width=0.95\linewidth]{../figures/fit-unmix-daughters-data-nimble.png}
-\caption{Posterior estimates for the mixing proportions of each parent for the $D$ daughter sediments. The parent ANB,SNR,PAR is abbreviated ASP.}
-\label{fig:unmixing-daughter-data}
+\centering\includegraphics[width=0.95\linewidth]{../figures/fit-unmix-children-data-nimble.png}
+\caption{Posterior estimates for the mixing proportions of each parent for the $D$ child sediments. The parent ANB,SNR,PAR is abbreviated ASP.}
+\label{fig:unmixing-child-data}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.32\textwidth}
 \centering\includegraphics[width=0.95\linewidth]{../figures/fit-unmix-cdf-data-nimble.png}
-\caption{Posterior estimates for the unobserved parent cumulative distribution functions. The black lines show the empirical cumulative distribution functions estimated from the data. The upper plot shows the full age distribution range and the lower plot shows ages 0-300 Ma.}
+\caption{Posterior estimates for the unobserved parent cumulative distribution functions. The black lines show the empirical cumulative distribution functions estimated from the data. The upper plot shows the full age distribution range and the lower plot shows ages 0-300 Myr.}
 \label{fig:unmixing-cdf-data}
 \end{subfigure}
 \caption{Results of end-member unmixing model fit to real data. The figures show that the end-member unmixing model is estimating the parameters of interest, but with some inaccuracies due to a lack of identifiability.}
@@ -2117,30 +2966,45 @@ for (i in 1:20) {
     dens[, i] <- dnorm(x, mu_mean[i], sigma_mean[i])
 }
 
+dimnames(muSamples) <- list(
+  iteration = 1:nrow(muSamples),
+  param     = paste0("mu[", 1:20, "]")
+)
+dimnames(sigmaSamples) <- list(
+  iteration = 1:nrow(sigmaSamples),
+  param     = paste0("sigma[", 1:20, "]")
+)
 
-ggplot(
-  data = data.frame(
-    mu = c(muSamples), 
-    idx = rep(1:20, each = nrow(muSamples))
-  ), 
-  aes (x = mu)
-) +
+p1 <- as.data.frame.table(muSamples, responseName = "mu") %>%
+  ggplot(aes (x = mu)) +
   geom_histogram(aes(y = ..density..), bins = 100) +
-  facet_wrap(~ idx, ncol = 4) 
+  facet_wrap(~ param, ncol = 4) 
+p2 <- as.data.frame.table(sigmaSamples, responseName = "sigma") %>%
+  ggplot(aes (x = sigma)) +
+  geom_histogram(aes(y = ..density..), bins = 100) +
+  facet_wrap(~ param, ncol = 4) 
+
+p1 + p2
 
 
-ggplot(
-  data = data.frame(
-    dens = c(dens), 
-    idx = rep(1:20, each = nrow(dens)),
-    x = x * 2000 / 100
-  ),
-  aes (x = x, y = dens)
-) + 
+dimnames(dens) <- list(
+  iteration = 1:nrow(dens),
+  idx     = 1:20
+)
+
+
+
+merge(
+  data.frame(iteration = 1:nrow(dens), x = x * 2000 / 100),
+  as.data.frame.table(dens, responseName = "dens")
+) %>%
+  ggplot(
+    aes (x = x, y = dens)
+  ) + 
   geom_line() +
   facet_wrap(~ idx, ncol = 4) +
-  xlab("Age in 100 Ma") + 
-  ggtitle("potential formation events")
+  xlab("Age in 100 Myr") + 
+  ggtitle("Estimated formation events")
 
 
 
@@ -2155,7 +3019,7 @@ ggplot(
 ) + 
   geom_line() +
   facet_wrap(~ idx, ncol = 4) +
-  xlab("Age in 100 Ma") + 
+  xlab("Age in 100 Myr") + 
   ggtitle("estimated formation events for parent 1")
 
 ggplot(
@@ -2168,7 +3032,7 @@ ggplot(
 ) + 
   geom_line() +
   facet_wrap(~ idx, ncol = 4) +
-  xlab("Age in 100 Ma") + 
+  xlab("Age in 100 Myr") + 
   ggtitle("estimated formation events for parent 2")
 
 
@@ -2182,7 +3046,7 @@ ggplot(
 ) + 
   geom_line() +
   facet_wrap(~ idx, ncol = 4) +
-  xlab("Age in 100 Ma") + 
+  xlab("Age in 100 Myr") + 
   ggtitle("estimated formation events for parent 3")
 
 
@@ -2191,7 +3055,7 @@ ggplot(
 ```
 
 
-
+# References
 
 ```{r, echo = FALSE}
 knitr::knit_exit()

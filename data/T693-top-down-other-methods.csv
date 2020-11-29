@@ -1,0 +1,16 @@
+Method,Value,Parent
+Likeness,0.10,P1
+Similarity,0.19,P1
+r2 PDP,0.14,P1
+Dmax,0.13,P1
+Vmax,0.14,P1
+Likeness,0.40,P2
+Similarity,0.29,P2
+r2 PDP,0.34,P2
+Dmax,0.26,P2
+Vmax,0.27,P2
+Likeness,0.50,P3
+Similarity,0.52,P3
+r2 PDP,0.52,P3
+Dmax,0.61,P3
+Vmax,0.59,P3
