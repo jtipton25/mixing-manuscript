@@ -260,10 +260,10 @@ z_tilde <- unlist(sapply(1:B, function(b) {
 z <- z_tilde + epsilon_z
 
 parents <- data.frame(
-  parent             = c(
+  parent             = factor(c(
     unlist(sapply(1:B, function(b) rep(paste0("parent", b), Nb[b]))),
     rep("child", Ny)
-  ),
+  )),
   age                = c(unlist(z), y),
   dating_uncertainty = c(s_z, s_y))
 

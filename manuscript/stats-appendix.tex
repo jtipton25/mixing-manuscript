@@ -1,0 +1,99 @@
+\section{Appendix}
+In the body of the text, we explain in detail how the scientific understanding of the geological processes that generated the data led to the development of the statistical model. Here in the appendix, we define the statistical models directly without the scientific motivation for clarity of model definition. 
+
+\subsection{Top-down mixing model}
+
+In the top-down mixing model, observations are made on both the child sediments and parent sediments. The $n_y$ observed age measurements for the child sediment are given by the vector $\mathbf{y} = (y_1, \ldots, y_{n_y})'$ and are reported with an observed analytic measurement standard deviation $\boldsymbol{\sigma}_y = (\sigma_{y1}, \ldots, \sigma_{yn_y})'$ associated with each observation. Assuming a normal distribution for the measurement process, the latent true ages are defined as $\tilde{\mathbf{y}} = (\tilde{y}_1, \ldots, \tilde{y}_{n_y})'$ and are modeled by 
+\begin{align*}
+\mathbf{y} | \tilde{\mathbf{y}}, \boldsymbol{\sigma}_y^2 & \sim \operatorname{N} (\mathbf{y} | \tilde{\mathbf{y}}, \operatorname{diag} ( \boldsymbol{\sigma}_y^2 ) ), 
+\end{align*}
+where $N(\mathbf{x} | \boldsymbol{\mu}, \boldsymbol{\Sigma})$ is a multivariate normal distribution with data vector $\mathbf{x}$, mean vector $\boldsymbol{\mu}$, and covariance matrix $\boldsymbol{\Sigma}$. The notation $\operatorname{diag} (\boldsymbol{\sigma^2})$ represents a diagonal covariance matrix with $i,i$th element $\sigma^2_i$ and off diagonal elements all equal to 0. 
+
+Likewise, the $b = 1, \ldots, B$ parent observations are each comprised of $n_b$ observations and are given by the vector $\mathbf{z}_b = (z_{b1}, \ldots z_{bn_b})'$  and are reported with an observed analytic measurement standard deviation $\boldsymbol{\sigma}_b = (\sigma_{b1}, \ldots, \sigma_{bn_b})'$ associated with each observation. Assuming a normal distribution for the measurement process, the latent true ages are defined as $\tilde{\mathbf{z}}_b = (\tilde{z}_{b1}, \ldots, \tilde{z}_{bn_b})'$ and are modeled by 
+\begin{align*}
+\mathbf{z}_b | \tilde{\mathbf{z}}_b, \boldsymbol{\sigma}_{b}^2 & \sim \operatorname{N} (\mathbf{z}_b | \tilde{\mathbf{z}}_b, \operatorname{diag} ( \boldsymbol{\sigma}_{b}^2 ) )
+\end{align*}
+
+The latent parent age distributions for the $b = 1, \ldots, B$ parents are modeled using a finite mixture of $K$ Gaussian distributions 
+\begin{align*}
+\tilde{\mathbf{z}}_b | \boldsymbol{\mu}, \boldsymbol{\sigma}^2, \boldsymbol{p}_{b} & \sim \prod_{i=1}^{n_b} \sum_{k=1}^K p_{bk} \operatorname{N} \left( \tilde{z}_{ib} \middle| \mu_{k}, \sigma^2_{k} \right) 
+\end{align*}
+where $\boldsymbol{\mu} = (\mu_1, \ldots, \mu_K)'$ and $\boldsymbol{\sigma}^2 = (\sigma^2_1, \ldots, \sigma^2_K)'$ are the mean and variance of the mixture distributions (which are shared across each of the parents) and $\mathbf{p}_{b} = (p_{b1}, \ldots, p_{bK})'$ are mixture weights where for $k = 1, \ldots, K,$ $p_{bk} > 0$ and $\sum_{k=1}^K p_{bk} = 1$. For $k = 1, \ldots, K$, the mixture distribution means are assigned independent, vague priors $N(\mu_\mu = 150 \mbox{ Myr}, \sigma^2_\mu = 150^2 \mbox{ Myr}^2)$ where Myr represents a million years. To ensure the mixing distributions are relatively concentrated with respect to geologic time, the mixing kernel standard deviations are assigned independent truncated half-Cauchy priors $\sigma_k \sim \operatorname{Cauchy}^+(0, 25 \mbox{ Myr})I\{0 < \sigma_k < 50 \mbox{ Myr}\}$, which enforces the mixing distribution scales (which represent geologic mineral formation events) to be small relative to the range of dates from about 0 to 300 Myr.
+
+For each parent $b = 1, \ldots, B$, the mixing probabilities $\mathbf{p}_b$ are modeled by introducing $k = 1, \ldots, K-1$ independent and identically distributed random variables $\tilde{p}_{bk} \sim Beta(1, \alpha_b)$ random variables and transforming the $\tilde{p}_{bk}$s by 
+\begin{align*}
+p_{b k} & = \begin{cases}
+\tilde{p}_{b1} & \mbox{for } k = 1,\\
+ \tilde{p}_{bk} \prod_{s=1}^{k-1} (1 - \tilde{p}_{bs}) & \mbox{for } k=2, \ldots, K-1, \\ 
+\prod_{s=1}^{k-1} (1 - p_{bs}) & \mbox{for } k = K.
+\end{cases}
+\end{align*}
+which induces a finite approximation to the stick-breaking representation of a Dirichlet process so long as $K$ is chosen large enough (Section 3 \citet{ishwaran2001gibbs} and \citet{ishwaran2002exact}). For $b = 1, \ldots, B$, $\alpha_b$ is assigned a $gamma(1, 1)$ prior and the vector $\boldsymbol{\alpha} = (\alpha_1, \ldots, \alpha_B)'$.
+
+Combining the parent distributions, the unobserved, latent ages are modeled using the finite mixture of mixtures
+
+\begin{align*}
+\tilde{\mathbf{y}} | \boldsymbol{\mu}, \boldsymbol{\sigma}^2, \{\boldsymbol{p}_b \}_{b=1}^B, \boldsymbol{\phi} & \sim \prod_{i=1}^{n_y} \sum_{b=1}^B \phi_b \sum_{k=1}^K p_{bk} \operatorname{N} \left( \tilde{y}_i \middle| \mu_{b}, \sigma_{b}^2 \right),
+\end{align*}
+where the notation $\{\mathbf{p}_b\}_{b=1}^{B}$ denotes the set of parameters $\{ \mathbf{p}_1, \ldots, \mathbf{p}_B\}$. The parameter $\boldsymbol{\phi} = (\phi_1, \ldots, \phi_B)'$ models the proportion of the child sediment $\phi_b$ that comes from parent $b$ where $\phi_b > 0$ and $\sum_{b=1}^B \phi_b = 1$. The mixing proportion $\boldsymbol{\phi}$ is a assigned a $Dirichlet(\alpha_\phi \mathbf{1})$ prior where $\mathbf{1}$ is a vector of ones of length $B$ and $\alpha_\phi$ is assigned a $gamma(1, 1)$ prior. 
+
+All combined, the top-down mixing model posterior is
+
+\begin{align*}
+& \left[ \mathbf{\tilde{y}}, \{ \mathbf{\tilde{z}}_b \}_{b=1}^B, \boldsymbol{\mu}, \boldsymbol{\sigma}^2, \{ \boldsymbol{p}_b \}_{b=1}^B, \boldsymbol{\phi}, \alpha_\phi, \boldsymbol{\alpha} \middle| \mathbf{y}, \boldsymbol{\sigma}_y^2, \{ \mathbf{z}_b\}_{b=1}^B, \{\boldsymbol{\sigma}^2_b \}_{b=1}^{B} \right] \propto \\
+& \hspace{3cm} \left[\mathbf{y} \middle| \mathbf{\tilde{y}}, \boldsymbol{\sigma}_y^2 \right]
+\prod_{b=1}^B \left[\mathbf{z}_b \middle| \mathbf{\tilde{z}}_b, \boldsymbol{\sigma}_b^2 \right] \times \\
+& \hspace{3cm} 
+\left[ \mathbf{\tilde{y}} \middle| \boldsymbol{\mu}, \boldsymbol{\sigma}^2, \{ \boldsymbol{p}_b \}_{b=1}^B, \boldsymbol{\phi} \right]
+\prod_{b=1}^B 
+\left[ \mathbf{\tilde{z}}_b \middle| \boldsymbol{\mu}, \boldsymbol{\sigma}^2, \boldsymbol{p}_b \right] \times\\
+& \hspace{3cm} 
+\left[ \boldsymbol{\mu} \right]
+\left[ \boldsymbol{\sigma}^2 \right]
+\left[ \boldsymbol{\phi} | \alpha_{\phi} \right]
+\left[ \alpha_{\phi} \right]
+\left( \prod_{b=1}^B \left[ \boldsymbol{p}_b \middle| \alpha_b \right]
+\left[ \alpha_b \right]
+ \right),
+\end{align*}
+where each line on the right-hand side of the proportional symbol is the data, process, and prior model, respectively.
+
+\subsection{Bottom-up unmixing model}
+
+In the bottom-up unmixing model, observations are made on $d = 1, \ldots, D$ child sediments whereas the parent sediments are unobserved. For each of the $d = 1, \ldots, D$ children, the $n_d$ observed age measurements are given by the vector $\mathbf{y}_d = (y_{d1}, \ldots, y_{dn_d})'$ and are reported with an observed analytic measurement standard deviation $\boldsymbol{\sigma}_d = (\sigma_{d1}, \ldots, \sigma_{dn_d})'$ associated with each observation. Assuming a normal distribution for the measurement process, the latent true ages are defined as $\tilde{\mathbf{y}}_d = (\tilde{y}_{d1}, \ldots, \tilde{y}_{dn_d})'$ and are modeled by 
+\begin{align*}
+\mathbf{y}_d | \tilde{\mathbf{y}}_d, \boldsymbol{\sigma}_d^2 & \sim \operatorname{N} (\mathbf{y}_d | \tilde{\mathbf{y}}_d, \operatorname{diag} ( \boldsymbol{\sigma}_d^2 ) ), 
+\end{align*}
+
+As none of the parent ages are observed, the latent parent age distributions for the $b = 1, \ldots, B$ parents are represented as a finite mixture of $K$ Gaussian distributions 
+\begin{align*}
+\sum_{k=1}^K p_{bk} \operatorname{N} \left( \mu_{k}, \sigma^2_{k} \right) 
+\end{align*}
+where $\boldsymbol{\mu} = (\mu_1, \ldots, \mu_K)'$ and $\boldsymbol{\sigma}^2 = (\sigma^2_1, \ldots, \sigma^2_K)'$ are the mean and variance of the mixture distributions (which are shared across each of the parents) and $\mathbf{p}_{b} = (p_{b1}, \ldots, p_{bK})'$ are mixture weights where for $k = 1, \ldots, K,$ $p_{bk} > 0$ and $\sum_{k=1}^K p_{bk} = 1$. For $k = 1, \ldots, K$, the mixture distribution means are assigned independent, vague priors $N(\mu_\mu = 150 \mbox{ Myr}, \sigma^2_\mu = 150^2 \mbox{ Myr}^2)$ where Myr represents a million years. To ensure the mixing distributions are relatively concentrated with respect to geologic time, the mixing kernel standard deviations are assigned independent truncated half-Cauchy priors $\sigma_k \sim \operatorname{Cauchy}^+(0, 25 \mbox{ Myr})I\{0 < \sigma_k < 50 \mbox{ Myr}\}$, which enforces the mixing distribution scales (which represent geologic mineral formation events) to be small relative to the range of dates from about 0 to 300 Myr.
+
+
+Because none of the parent ages are observed, the parent distributions are estimated entirely using child sediment observations. Assuming a fixed and known number of parents $B$, the bottom-up process model for the $d$th child is
+
+\begin{align*}
+\tilde{\mathbf{y}}_{d} | \boldsymbol{\mu}, \boldsymbol{\sigma^2}, \{ \boldsymbol{p}_b \}_{b=1}^B, \boldsymbol{\phi}_d & \sim \prod_{i1=}^{n_d} \sum_{b=1}^B \phi_{db} \sum_{k=1}^K p_{bk} \operatorname{N}(\tilde{y}_{id} | \mu_{k}, \sigma^2_{k}),
+\end{align*}
+where the $B$-dimensional vector of mixture proportions $\boldsymbol{\phi}_d = \left( \phi_{d1}, \ldots, \phi_{dB} \right)'$ models the proportion of the $d$th child sediment that can be attributed to each of the $B$ parents where for $b = 1, \ldots, B$, $\phi_{db}>0$ and $\sum_{b=1}^B \phi_{db} = 1$. 
+For each of the $d = 1, \ldots, D$ children, the mixing proportions $\boldsymbol{\phi}_d$ are a assigned independent $Dirichlet(\alpha_{d} \mathbf{1})$ prior where $\mathbf{1}$ is a vector of ones of length $B$ and each $\alpha_{d}$ is assigned a $gamma(1, 1)$ prior. The priors for $\boldsymbol{\mu}$, $\boldsymbol{\sigma^2}$, and $\{\mathbf{p}_{b}\}_{b=1}^B$ (and their respective hyperparameters $\boldsymbol{\alpha} = (\alpha_1, \ldots, \alpha_B)'$) are the same as in the top-down mixing model.
+
+
+Thus, the bottom-up unmixing model posterior distribution is 
+
+\begin{align*}
+& \left[ \{ \tilde{\mathbf{y}}_d \}_{d=1}^D, \boldsymbol{\mu}, \boldsymbol{\sigma}^2, \{ \boldsymbol{p}_b \}_{b=1}^B, \{ \boldsymbol{\phi}_d \}_{d=1}^D, \boldsymbol{\alpha}_{\phi}, \boldsymbol{\alpha} \middle| \{ \mathbf{y}_d\}_{d=1}^D, \{\boldsymbol{\sigma}^2_{d} \}_{d=1}^D \right] \propto \\
+& \hspace{3cm} \prod_{d=1}^D \left[\mathbf{y}_d \middle| \mathbf{\tilde{y}}_d, \boldsymbol{\sigma}_{d}^2 \right] \times \\
+& \hspace{3cm} 
+\prod_{d=1}^D \left[ \tilde{\mathbf{y}}_d \middle| \boldsymbol{\mu}, \boldsymbol{\sigma}^2, \boldsymbol{\phi}_d, \{ \boldsymbol{p}_b \}_{b=1}^B \right] \times \\
+& \hspace{3cm} 
+\left[ \boldsymbol{\mu}\right]
+\left[ \boldsymbol{\sigma}^2 \right]
+\left( \prod_{b=1}^B \left[ \boldsymbol{p}_b \middle| \alpha_b \right]
+\left[ \alpha_b \right] \right)
+\left( \prod_{d=1}^D \left[ \boldsymbol{\phi}_d | \alpha_{d} \right]
+\left[ \alpha_{d} \right] \right),
+\end{align*}
+where each line on the right-hand side of the proportional symbol is the data, process, and prior model, respectively.
